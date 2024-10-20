@@ -1,4 +1,3 @@
-#Definição do provedor e da região utilizada
 provider "aws" {
   region = "us-east-1"
 }
@@ -15,7 +14,6 @@ variable "candidato" {
   default     = "SeuNome"
 }
 
-#Gerando a chave privada pra conectar com a instância do provedor
 resource "tls_private_key" "ec2_key" {
   algorithm = "RSA"     //Algorítimo de criptografia utilizado
   rsa_bits  = 2048
@@ -83,33 +81,55 @@ resource "aws_route_table_association" "main_association" {
   }
 }
 
-#Criando o grupo de segurança principal
-resource "aws_security_group" "main_sg" {
-  name        = "${var.projeto}-${var.candidato}-sg"
-  description = "Permitir SSH de qualquer lugar e todo o tráfego de saída"
+resource "aws_security_group" "ssh_sg" {
+  name        = "${var.projeto}-${var.candidato}-ssh-sg"
+  description = "Permitir SSH somente de IPs especificos"
   vpc_id      = aws_vpc.main_vpc.id
 
   # Não permitir acesso indiscriminado
   ingress {
-    description      = "Allow SSH from anywhere"
     from_port        = 22
     to_port          = 22
+    protocol         = "tcp"
+    cidr_blocks      = ["192.168.0.1"] //Exemplo
+  }
+
+  tags = {
+    Name = "${var.projeto}-${var.candidato}-ssh-sg"
+  }
+}
+
+resource "aws_security_group" "http_sg" {
+  name        = "${var.projeto}-${var.candidato}-http-sg"
+  description = "Permitir HTTP de qualquer lugar"
+  vpc_id      = aws_vpc.main_vpc.id
+
+  ingress {
+    from_port        = 80
+    to_port          = 80
     protocol         = "tcp"
     cidr_blocks      = ["0.0.0.0/0"]
   }
 
-  # Regras de saída
-  egress {
-    description      = "Allow all outbound traffic"
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
+  tags = {
+    Name = "${var.projeto}-${var.candidato}-http-sg"
+  }
+}
+
+resource "aws_security_group" "https_sg" {
+  name        = "${var.projeto}-${var.candidato}-https-sg"
+  description = "Permitir HTTP de qualquer lugar"
+  vpc_id      = aws_vpc.main_vpc.id
+
+  ingress {
+    from_port        = 443
+    to_port          = 443 
+    protocol         = "tcp"
     cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
   }
 
   tags = {
-    Name = "${var.projeto}-${var.candidato}-sg"
+    Name = "${var.projeto}-${var.candidato}-https-sg"
   }
 }
 
@@ -143,7 +163,7 @@ resource "aws_instance" "debian_ec2" {
   instance_type   = "t2.micro"                          //tipo da instância
   subnet_id       = aws_subnet.main_subnet.id           //id da subnet
   key_name        = aws_key_pair.ec2_key_pair.key_name  //par de chaves
-  security_groups = [aws_security_group.main_sg.name]   //lista dos grupos de segurança
+  security_groups = [aws_security_group.ssh_sg, aws_security_group.http_sg, aws_security_group.https_sg]   //lista dos grupos de segurança
   iam_instance_profile = "teste"
 
   monitoring = true
